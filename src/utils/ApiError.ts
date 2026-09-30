@@ -31,4 +31,10 @@ export class ApiError extends Error {
   static unsupportedMediaType(message = 'Unsupported file type') {
     return new ApiError(415, 'UNSUPPORTED_FILE_TYPE', message);
   }
+  static unprocessableEntity(message = 'Unable to process this file') {
+    return new ApiError(422, 'UNPROCESSABLE_ENTITY', message);
+  }
+  static serviceUnavailable(message = 'Service temporarily unavailable') {
+    return new ApiError(503, 'SERVICE_UNAVAILABLE', message);
+  }
 }

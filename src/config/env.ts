@@ -23,6 +23,12 @@ const envSchema = z.object({
   CLOUDINARY_API_KEY: z.string().min(1, 'CLOUDINARY_API_KEY is required'),
   CLOUDINARY_API_SECRET: z.string().min(1, 'CLOUDINARY_API_SECRET is required'),
   MAX_FILE_SIZE_MB: z.coerce.number().int().positive().default(5),
+  // new for Phase 3
+  GROQ_API_KEY: z.string().min(1, 'GROQ_API_KEY is required'),
+  AI_MODEL: z.string().default('openai/gpt-oss-20b'),
+  AI_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
+  AI_MAX_INPUT_CHARS: z.coerce.number().int().positive().default(12_000),
+  MAX_EXTRACTED_CHARS: z.coerce.number().int().positive().default(100_000),
 });
 
 const parsed = envSchema.safeParse(process.env);
