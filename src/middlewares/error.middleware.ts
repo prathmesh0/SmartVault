@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { ZodError } from 'zod';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/ApiError.js';
+import multer from 'multer';
 
 export const errorMiddleware: ErrorRequestHandler = (err, req, res, _next) => {
   let statusCode = 500;
@@ -40,6 +41,16 @@ export const errorMiddleware: ErrorRequestHandler = (err, req, res, _next) => {
     statusCode = 413;
     code = 'PAYLOAD_TOO_LARGE';
     message = 'Request body too large';
+  } else if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      statusCode = 413;
+      code = 'FILE_TOO_LARGE';
+      message = `File exceeds the ${env.MAX_FILE_SIZE_MB}MB limit`;
+    } else {
+      statusCode = 400;
+      code = 'UPLOAD_ERROR';
+      message = err.message;
+    }
   }
 
   if (statusCode >= 500) {

@@ -25,4 +25,10 @@ export class ApiError extends Error {
   static conflict(message = 'Conflict') {
     return new ApiError(409, 'CONFLICT', message);
   }
+  static payloadTooLarge(message = 'File is too large') {
+    return new ApiError(413, 'FILE_TOO_LARGE', message);
+  }
+  static unsupportedMediaType(message = 'Unsupported file type') {
+    return new ApiError(415, 'UNSUPPORTED_FILE_TYPE', message);
+  }
 }
