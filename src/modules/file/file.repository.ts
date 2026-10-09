@@ -1,10 +1,19 @@
-import { ACTIVE_STATUSES, FileModel, type FileDocument, type FileStatus } from './file.model.js';
+import type { QueryFilter } from 'mongoose';
+import { ACTIVE_STATUSES, FileModel, type FileDocument, type FileStatus, type IFile } from './file.model.js';
+import type { ListFilesFilter } from './file.types.js';
 
 interface CreateQueuedData {
   owner: string;
   originalName: string;
   mimeType: string;
   size: number;
+}
+
+// Escape user input before dropping it into a RegExp — otherwise a search
+// for "a.b" (or worse, something catastrophic) would be interpreted as regex
+// syntax rather than a literal string.
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 interface AiResultData {
@@ -32,13 +41,26 @@ export const fileRepository = {
 
   async listByOwner(
     owner: string,
+    filter: ListFilesFilter,
     page: number,
     limit: number,
   ): Promise<{ items: FileDocument[]; total: number }> {
+    const query: QueryFilter<IFile> = { owner };
+
+    if (filter.status) query.status = filter.status;
+    if (filter.category) query['ai.category'] = filter.category;
+    // matches the scalar tag inside the tags array
+    if (filter.tag) query['ai.tags'] = filter.tag.trim().toLowerCase();
+
+    if (filter.search) {
+      const pattern = new RegExp(escapeRegex(filter.search), 'i');
+      query.$or = [{ originalName: pattern }, { 'ai.summary': pattern }];
+    }
+
     const skip = (page - 1) * limit;
     const [items, total] = await Promise.all([
-      FileModel.find({ owner }).sort({ createdAt: -1 }).skip(skip).limit(limit),
-      FileModel.countDocuments({ owner }),
+      FileModel.find(query).sort(filter.sort).skip(skip).limit(limit),
+      FileModel.countDocuments(query),
     ]);
     return { items, total };
   },

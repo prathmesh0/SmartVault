@@ -4,6 +4,7 @@ import { sendSuccess } from '../../utils/apiResponse.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { requireParam } from '../../utils/requireParam.js';
 import { fileService } from './file.service.js';
+import type { ListFilesFilter } from './file.types.js';
 
 export const fileController = {
   upload: asyncHandler(async (req: Request, res: Response) => {
@@ -22,8 +23,11 @@ export const fileController = {
   }),
 
   list: asyncHandler(async (req: Request, res: Response) => {
-    const { page, limit } = req.query as unknown as { page: number; limit: number };
-    const result = await fileService.list(req.user!.id, page, limit);
+    const { page, limit, ...filter } = req.query as unknown as ListFilesFilter & {
+      page: number;
+      limit: number;
+    };
+    const result = await fileService.list(req.user!.id, filter, page, limit);
     sendSuccess(res, { files: result.items }, { meta: result.meta });
   }),
 

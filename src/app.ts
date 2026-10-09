@@ -8,6 +8,7 @@ import { pinoHttp } from 'pino-http';
 import { env } from './config/env.js';
 import { errorMiddleware } from './middlewares/error.middleware.js';
 import { notFoundMiddleware } from './middlewares/notFound.middleware.js';
+import { generalLimiter } from './middlewares/rateLimit.middleware.js';
 import routes from './routes.js';
 import { sendSuccess } from './utils/apiResponse.js';
 import { logger } from './utils/logger.js';
@@ -53,7 +54,7 @@ export function createApp() {
     sendSuccess(res, { status: 'ok', uptime: process.uptime() });
   });
 
-  app.use('/api/v1', routes);
+  app.use('/api/v1', generalLimiter, routes);
 
   app.use(notFoundMiddleware);
   app.use(errorMiddleware);

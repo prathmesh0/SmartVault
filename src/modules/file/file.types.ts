@@ -37,6 +37,18 @@ interface FileLike {
   createdAt: Date;
 }
 
+export type FileSort = 'createdAt' | '-createdAt' | 'size' | '-size' | 'originalName';
+
+// Everything the caller may narrow a listing by. All optional: an empty
+// filter matches every file the owner has.
+export interface ListFilesFilter {
+  status?: FileStatus;
+  category?: string;
+  tag?: string;
+  search?: string;
+  sort: FileSort;
+}
+
 // Params of the `/:id` file routes. Express types the default params bag as
 // `string | string[]` (wildcards are arrays), so controllers must state the
 // concrete shape to get a plain `string` out of `req.params.id`.

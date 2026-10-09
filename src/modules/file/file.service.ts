@@ -5,7 +5,12 @@ import { storageService } from '../storage/storage.service.js';
 import { ACTIVE_STATUSES } from './file.model.js';
 import { filePipeline } from './file.pipeline.js';
 import { fileRepository } from './file.repository.js';
-import { toPublicFile, type PaginationMeta, type PublicFile } from './file.types.js';
+import {
+  toPublicFile,
+  type ListFilesFilter,
+  type PaginationMeta,
+  type PublicFile,
+} from './file.types.js';
 
 interface IncomingFile {
   buffer: Buffer;
@@ -56,10 +61,11 @@ export const fileService = {
 
   async list(
     ownerId: string,
+    filter: ListFilesFilter,
     page: number,
     limit: number,
   ): Promise<{ items: PublicFile[]; meta: PaginationMeta }> {
-    const { items, total } = await fileRepository.listByOwner(ownerId, page, limit);
+    const { items, total } = await fileRepository.listByOwner(ownerId, filter, page, limit);
     return {
       items: items.map(toPublicFile),
       meta: { page, limit, total, totalPages: Math.max(Math.ceil(total / limit), 1) },

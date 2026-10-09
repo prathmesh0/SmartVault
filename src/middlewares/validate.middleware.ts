@@ -13,9 +13,17 @@ export function validate(schemas: Schemas): RequestHandler {
 
     if (schemas.query) {
       const parsed = schemas.query.parse(req.query);
-      // req.query is a getter-only property in Express 5 — reassigning it
-      // throws, so we mutate the existing object in place instead.
-      Object.assign(req.query, parsed);
+      // Express 5 defines req.query as a prototype getter that re-parses the
+      // query string on every access and does not cache it. Mutating the
+      // object it returns (or reassigning req.query) is therefore pointless —
+      // the parsed/coerced values would be thrown away. Shadowing the getter
+      // with an own data property is what actually sticks.
+      Object.defineProperty(req, 'query', {
+        value: parsed,
+        writable: true,
+        configurable: true,
+        enumerable: true,
+      });
     }
 
     if (schemas.params) req.params = schemas.params.parse(req.params) as typeof req.params;

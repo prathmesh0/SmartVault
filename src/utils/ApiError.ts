@@ -34,6 +34,9 @@ export class ApiError extends Error {
   static unprocessableEntity(message = 'Unable to process this file') {
     return new ApiError(422, 'UNPROCESSABLE_ENTITY', message);
   }
+  static tooManyRequests(message = 'Too many requests, please try again later') {
+    return new ApiError(429, 'TOO_MANY_REQUESTS', message);
+  }
   static serviceUnavailable(message = 'Service temporarily unavailable') {
     return new ApiError(503, 'SERVICE_UNAVAILABLE', message);
   }

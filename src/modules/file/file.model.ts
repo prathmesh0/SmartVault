@@ -69,7 +69,11 @@ const fileSchema = new Schema<IFile>(
   { timestamps: true },
 );
 
+// Mirror the supported listing filters so Mongo can serve them from an
+// index instead of scanning every document the user owns.
 fileSchema.index({ owner: 1, createdAt: -1 });
 fileSchema.index({ owner: 1, status: 1 });
+fileSchema.index({ owner: 1, 'ai.category': 1 });
+fileSchema.index({ owner: 1, 'ai.tags': 1 });
 
 export const FileModel = model<IFile>('File', fileSchema);
