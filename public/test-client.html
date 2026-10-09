@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SmartVault — Test Client</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 1.4rem; }
+  section { margin-bottom: 24px; padding: 16px; border: 1px solid #ddd; border-radius: 8px; }
+  input, button { font-size: 1rem; padding: 6px 10px; margin: 4px 4px 4px 0; }
+  #fileList { list-style: none; padding: 0; }
+  #fileList li { border: 1px solid #eee; border-radius: 6px; padding: 10px; margin-bottom: 8px; }
+  .status-QUEUED, .status-UPLOADING, .status-EXTRACTING, .status-ANALYZING { color: #b58900; font-weight: 600; }
+  .status-COMPLETED { color: #2e7d32; font-weight: 600; }
+  .status-FAILED { color: #c62828; font-weight: 600; }
+  .progress-bar { background: #eee; border-radius: 4px; height: 8px; overflow: hidden; margin: 6px 0; }
+  .progress-fill { background: #1976d2; height: 100%; transition: width 0.3s ease; }
+  .tags span { display: inline-block; background: #eef; border-radius: 4px; padding: 2px 6px; margin: 2px 4px 0 0; font-size: 0.8rem; }
+  .hidden { display: none; }
+  small { color: #666; }
+</style>
+</head>
+<body>
+<h1>SmartVault — Test Client</h1>
+
+<section id="authSection">
+  <h2>Login / Register</h2>
+  <div><input id="name" placeholder="Name (register only)" /></div>
+  <div>
+    <input id="email" placeholder="Email" value="test@example.com" />
+    <input id="password" type="password" placeholder="Password" value="password123" />
+  </div>
+  <button id="registerBtn">Register</button>
+  <button id="loginBtn">Login</button>
+  <p id="authError" style="color:#c62828"></p>
+</section>
+
+<section id="appSection" class="hidden">
+  <h2>Upload a document</h2>
+  <input type="file" id="fileInput" accept=".pdf,.txt" />
+  <button id="uploadBtn">Upload</button>
+  <div class="progress-bar"><div class="progress-fill" id="uploadProgress" style="width:0%"></div></div>
+  <small id="socketStatus">Socket: connecting...</small>
+  <button id="logoutBtn" style="float:right">Logout</button>
+
+  <h2>Your files</h2>
+  <ul id="fileList"></ul>
+</section>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+const API_BASE = '/api/v1';
+let accessToken = null;
+let socket = null;
+
+const authSection = document.getElementById('authSection');
+const appSection = document.getElementById('appSection');
+const authError = document.getElementById('authError');
+const fileList = document.getElementById('fileList');
+const socketStatus = document.getElementById('socketStatus');
+
+async function api(path, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+  const res = await fetch(API_BASE + path, { ...options, headers, credentials: 'include' });
+  const text = await res.text();
+  const body = text ? JSON.parse(text) : {};
+  if (!res.ok || body.success === false) {
+    throw new Error(body?.error?.message || `Request failed (${res.status})`);
+  }
+  return body;
+}
+
+document.getElementById('registerBtn').addEventListener('click', async () => {
+  authError.textContent = '';
+  try {
+    await api('/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: document.getElementById('name').value || 'Test User',
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value,
+      }),
+    });
+    authError.style.color = '#2e7d32';
+    authError.textContent = 'Registered! Now click Login.';
+  } catch (err) {
+    authError.style.color = '#c62828';
+    authError.textContent = err.message;
+  }
+});
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  authError.textContent = '';
+  try {
+    const body = await api('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value,
+      }),
+    });
+    accessToken = body.data.accessToken;
+    onLoggedIn();
+  } catch (err) {
+    authError.style.color = '#c62828';
+    authError.textContent = err.message;
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  try { await api('/auth/logout', { method: 'POST' }); } catch {}
+  accessToken = null;
+  if (socket) socket.disconnect();
+  fileList.innerHTML = '';
+  appSection.classList.add('hidden');
+  authSection.classList.remove('hidden');
+});
+
+async function onLoggedIn() {
+  authSection.classList.add('hidden');
+  appSection.classList.remove('hidden');
+  connectSocket();
+  await loadFiles();
+}
+
+function connectSocket() {
+  socket = io({ auth: { token: accessToken } });
+
+  socket.on('connect', () => { socketStatus.textContent = 'Socket: connected'; });
+  socket.on('disconnect', () => { socketStatus.textContent = 'Socket: disconnected'; });
+  socket.on('connect_error', (err) => { socketStatus.textContent = `Socket: error (${err.message})`; });
+
+  socket.on('file:status', ({ fileId, status, progress, message }) => {
+    updateFileRow(fileId, { status, progress, message });
+  });
+
+  socket.on('file:completed', ({ fileId, ai }) => {
+    updateFileRow(fileId, { status: 'COMPLETED', progress: 100, ai });
+  });
+
+  socket.on('file:failed', ({ fileId, failedStage, error }) => {
+    updateFileRow(fileId, { status: 'FAILED', failedStage, error });
+  });
+}
+
+async function loadFiles() {
+  const body = await api('/files?page=1&limit=20');
+  fileList.innerHTML = '';
+  body.data.files.forEach(renderFileRow);
+}
+
+function renderFileRow(file) {
+  let li = document.getElementById(`file-${file.id}`);
+  if (!li) {
+    li = document.createElement('li');
+    li.id = `file-${file.id}`;
+    fileList.prepend(li);
+  }
+  li.__file = file;
+  li.innerHTML = fileRowHtml(file);
+}
+
+function fileRowHtml(file) {
+  const tags = (file.ai?.tags || []).map((t) => `<span>${t}</span>`).join('');
+  return `
+    <div><strong>${file.originalName}</strong> — <span class="status-${file.status}">${file.status}</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${file.progress || 0}%"></div></div>
+    ${file.ai ? `<div><em>${file.ai.summary}</em></div><div><strong>${file.ai.category}</strong></div><div class="tags">${tags}</div>` : ''}
+    ${file.error ? `<div style="color:#c62828">Error (${file.failedStage}): ${file.error}</div><button onclick="retryFile('${file.id}')">Retry</button>` : ''}
+  `;
+}
+
+function updateFileRow(fileId, patch) {
+  let li = document.getElementById(`file-${fileId}`);
+  if (!li) {
+    li = document.createElement('li');
+    li.id = `file-${fileId}`;
+    fileList.prepend(li);
+  }
+  const existing = li.__file || { id: fileId, originalName: '(new file)', status: 'QUEUED', progress: 0 };
+  const merged = { ...existing, ...patch };
+  li.__file = merged;
+  li.innerHTML = fileRowHtml(merged);
+}
+
+async function retryFile(fileId) {
+  try {
+    await api(`/files/${fileId}/retry`, { method: 'POST' });
+  } catch (err) {
+    alert(err.message);
+  }
+}
+window.retryFile = retryFile;
+
+document.getElementById('uploadBtn').addEventListener('click', () => {
+  const input = document.getElementById('fileInput');
+  const file = input.files[0];
+  if (!file) return alert('Choose a file first');
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', API_BASE + '/files');
+  xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+
+  // This is the client's OWN view of upload progress (bytes leaving the
+  // browser) — the server has no visibility into this part. It's separate
+  // from, and finishes before, the real-time pipeline stages below.
+  xhr.upload.addEventListener('progress', (e) => {
+    if (e.lengthComputable) {
+      const pct = Math.round((e.loaded / e.total) * 100);
+      document.getElementById('uploadProgress').style.width = pct + '%';
+    }
+  });
+
+  xhr.onload = () => {
+    document.getElementById('uploadProgress').style.width = '0%';
+    input.value = '';
+    const body = JSON.parse(xhr.responseText);
+    if (xhr.status === 202) {
+      renderFileRow(body.data.file);
+    } else {
+      alert(body?.error?.message || 'Upload failed');
+    }
+  };
+
+  xhr.onerror = () => alert('Upload failed (network error)');
+  xhr.send(formData);
+});
+</script>
+</body>
+</html>

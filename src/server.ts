@@ -2,13 +2,21 @@ import http from 'node:http';
 import { createApp } from './app.js';
 import { connectDb, disconnectDb } from './config/db.js';
 import { env } from './config/env.js';
+import { fileService } from './modules/file/file.service.js';
+import { initRealtimeGateway } from './modules/realtime/realtime.gateway.js';
 import { logger } from './utils/logger.js';
 
 async function main() {
   await connectDb();
 
+  const recovered = await fileService.recoverStuckFiles();
+  if (recovered > 0) {
+    logger.warn(`Recovered ${recovered} file(s) stuck mid-processing from a previous run`);
+  }
+
   const app = createApp();
   const server = http.createServer(app);
+  initRealtimeGateway(server); // attaches to the SAME http server, same port
 
   server.listen(env.PORT, () => {
     logger.info(`🚀 Server running on http://localhost:${env.PORT} (${env.NODE_ENV})`);

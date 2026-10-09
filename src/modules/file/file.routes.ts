@@ -7,12 +7,12 @@ import { fileIdParamSchema, listFilesSchema } from './file.validation.js';
 
 const router = Router();
 
-// every file route requires a logged-in user
 router.use(authenticate);
 
 router.post('/', uploadSingleFile, verifyFileSignature, fileController.upload);
 router.get('/', validate(listFilesSchema), fileController.list);
 router.get('/:id', validate(fileIdParamSchema), fileController.getById);
 router.delete('/:id', validate(fileIdParamSchema), fileController.remove);
+router.post('/:id/retry', validate(fileIdParamSchema), fileController.retry);
 
 export default router;

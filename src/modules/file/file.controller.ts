@@ -10,7 +10,10 @@ export const fileController = {
     if (!req.file || !req.fileValidation) throw ApiError.badRequest('No file provided');
 
     const file = await fileService.uploadFile(req.user!.id, req.file, req.fileValidation.mimeType);
-    sendSuccess(res, { file }, { status: 201 });
+    // 202: the record exists (status QUEUED) but processing hasn't
+    // finished. The client should watch for socket events, not treat this
+    // response as the final state.
+    sendSuccess(res, { file }, { status: 202 });
   }),
 
   getById: asyncHandler(async (req: Request, res: Response) => {
@@ -27,5 +30,10 @@ export const fileController = {
   remove: asyncHandler(async (req: Request, res: Response) => {
     await fileService.remove(req.user!.id, requireParam(req, 'id'));
     sendSuccess(res, { message: 'File deleted' });
+  }),
+
+  retry: asyncHandler(async (req: Request, res: Response) => {
+    const file = await fileService.retry(req.user!.id, requireParam(req, 'id'));
+    sendSuccess(res, { file }, { status: 202 });
   }),
 };

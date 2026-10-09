@@ -1,11 +1,39 @@
 import type { Types } from 'mongoose';
+import type { FileStatus } from './file.model.js';
+
+export interface PublicFileAi {
+  summary: string;
+  category: string;
+  tags: string[];
+  model: string;
+  processedAt: Date;
+}
 
 export interface PublicFile {
   id: string;
   originalName: string;
   mimeType: string;
   size: number;
-  url: string;
+  url?: string;
+  status: FileStatus;
+  progress: number;
+  failedStage?: string;
+  error?: string;
+  ai?: PublicFileAi;
+  createdAt: Date;
+}
+
+interface FileLike {
+  _id: Types.ObjectId;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  url?: string;
+  status: FileStatus;
+  progress: number;
+  failedStage?: string;
+  error?: string;
+  ai?: PublicFileAi;
   createdAt: Date;
 }
 
@@ -14,20 +42,18 @@ export interface PublicFile {
 // concrete shape to get a plain `string` out of `req.params.id`.
 export type FileRouteParams = { id: string };
 
-export function toPublicFile(file: {
-  _id: Types.ObjectId;
-  originalName: string;
-  mimeType: string;
-  size: number;
-  url: string;
-  createdAt: Date;
-}): PublicFile {
+export function toPublicFile(file: FileLike): PublicFile {
   return {
     id: file._id.toString(),
     originalName: file.originalName,
     mimeType: file.mimeType,
     size: file.size,
     url: file.url,
+    status: file.status,
+    progress: file.progress,
+    failedStage: file.failedStage,
+    error: file.error,
+    ai: file.ai,
     createdAt: file.createdAt,
   };
 }
